@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+
+required docker
+required curl
+
+export DOCKER_HOST=ssh://oct.dupunk.to
+
+IMAGE=dupunkto/caddy
+REGISTRIES=(ducr.io ghcr.io)
+
+PLUGINS=(
+  github.com/dupunkto/caddy-dns-bhosted
+  github.com/caddy-dns/desec
+)
+
+build() {
+  caddy=$(p:latest github.com/caddyserver/caddy/v2)
+  plugins=$(p:latest "${PLUGINS[@]}" | sed 's/^/--with /')
+
+  docker build \
+    --build-arg "CADDY_VERSION=${caddy##*@v}" \
+    --build-arg "PLUGINS=$plugins" \
+    --tag "$IMAGE" "$@" .
+}
+
+release() {
+  caddy=$(p:latest github.com/caddyserver/caddy/v2)
+  version=${caddy##*@v}
+
+  # Changes whenever anything that ends up in the image does.
+  tag=$version-$(
+    {
+      p:latest "${PLUGINS[@]}"
+      cat Dockerfile
+      docker manifest inspect "caddy:$version-builder"
+      docker manifest inspect "caddy:$version"
+    } | cksum | cut -d' ' -f1
+  )
+
+  tags=()
+  targets=()
+
+  for registry in "${REGISTRIES[@]}"; do
+    if ! quiet docker manifest inspect "$registry/$IMAGE:$tag"; then
+      tags+=(--tag "$registry/$IMAGE:$tag" --tag "$registry/$IMAGE:$version" --tag "$registry/$IMAGE:latest")
+      targets+=("$registry/$IMAGE")
+    fi
+  done
+
+  if [ "${#targets[@]}" -eq 0 ]; then
+    echo "Already up to date."
+    return
+  fi
+
+  build "${tags[@]}"
+
+  for target in "${targets[@]}"; do
+    docker push --all-tags "$target"
+  done
+}
+
+p:latest() {
+  for module; do
+    curl -fsS --retry 3 "https://proxy.golang.org/$module/@latest" \
+      | sed -n "s|.*\"Version\":\"\([^\"]*\)\".*|$module@\1|p" \
+      | grep . || return
+  done
+}
