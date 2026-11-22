@@ -3,7 +3,7 @@
 required docker
 required curl
 
-export DOCKER_HOST=ssh://oct.dupunk.to
+export DOCKER_HOST=ssh://dec.dupunk.to
 
 IMAGE=dupunkto/caddy
 REGISTRIES=(ducr.io ghcr.io)
@@ -17,7 +17,7 @@ build() {
   caddy=$(p:latest github.com/caddyserver/caddy/v2)
   plugins=$(p:latest "${PLUGINS[@]}" | sed 's/^/--with /')
 
-  docker build \
+  docker build --pull \
     --build-arg "CADDY_VERSION=${caddy##*@v}" \
     --build-arg "PLUGINS=$plugins" \
     --tag "$IMAGE" "$@" .
