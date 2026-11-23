@@ -31,7 +31,7 @@ release() {
   tag=$version-$(
     {
       p:latest "${PLUGINS[@]}"
-      cat Dockerfile
+      cat Dockerfile Caddyfile
       docker manifest inspect "caddy:$version-builder"
       docker manifest inspect "caddy:$version"
     } | cksum | cut -d' ' -f1
